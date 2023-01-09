@@ -4,7 +4,10 @@ import {
   shell,
   BrowserWindow,
   MenuItemConstructorOptions,
+  dialog,
 } from 'electron';
+
+import loadItems from '../logic/excel';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -200,6 +203,15 @@ export default class MenuBuilder {
           {
             label: '&Open',
             accelerator: 'Ctrl+O',
+            click: () => {
+              const filename: any = dialog.showOpenDialogSync(this.mainWindow, {
+                properties: ['openFile'],
+              });
+              if (filename !== undefined) {
+                loadItems(filename[0]);
+              }
+              /* loadItems(); */
+            },
           },
           {
             label: '&Close',
