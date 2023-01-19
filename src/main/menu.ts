@@ -204,9 +204,12 @@ export default class MenuBuilder {
             label: '&Open',
             accelerator: 'Ctrl+O',
             click: () => {
-              const filename: any = dialog.showOpenDialogSync(this.mainWindow, {
-                properties: ['openFile'],
-              });
+              const filename: string[] | undefined = dialog.showOpenDialogSync(
+                this.mainWindow,
+                {
+                  properties: ['openFile'],
+                }
+              );
               if (filename !== undefined) {
                 loadItems(filename[0]);
               }
