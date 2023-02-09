@@ -13,6 +13,7 @@ module.exports = {
       },
     ],
     'no-console': 'off',
+    endOfLine: 'off',
   },
   parserOptions: {
     ecmaVersion: 2020,

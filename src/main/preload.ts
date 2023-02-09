@@ -28,7 +28,30 @@ const electronHandler = {
     set(property: any, val: any) {
       ipcRenderer.send('electron-store-set', property, val);
     },
+    delete(key: string) {
+      ipcRenderer.send('electron-store-delete', key);
+    },
     // Other method you want to add like has(), reset(), etc.
+  },
+  dialog: {
+    openFile() {
+      return ipcRenderer.sendSync('open-file');
+    },
+    saveFile() {
+      return ipcRenderer.sendSync('save-file');
+    },
+    saveExcel(
+      data: any[] | undefined,
+      colHeaders: (string | number)[] | undefined
+    ) {
+      return ipcRenderer.sendSync('save-excel', data, colHeaders);
+    },
+    removeBlankRow() {
+      return ipcRenderer.sendSync('remove-blank-rows');
+    },
+    loadItems() {
+      return ipcRenderer.sendSync('load-items');
+    },
   },
 };
 contextBridge.exposeInMainWorld('electron', electronHandler);

@@ -9,12 +9,17 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
-import MenuBuilder from './menu';
+import fs from 'fs/promises';
+import { existsSync } from 'fs';
+import * as XLSX from 'xlsx';
+import moment from 'moment';
+/* import { readFile, set_fs, utils, writeFile } from 'xlsx'; */
+/* import MenuBuilder from './menu'; */
 import { resolveHtmlPath } from './util';
-import storage from '../logic/storage';
+import { storage, getExcelSheetName, getItemSheetName } from './logic/storage';
 
 class AppUpdater {
   constructor() {
@@ -25,6 +30,178 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
+
+const loadItems = async (event: Electron.IpcMainEvent) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Cargar Items',
+      filters: [
+        {
+          name: 'Spreadsheets',
+          extensions: [
+            'xlsx',
+            'xls',
+            'xlsb',
+            'xlsm' /* ... other formats ... */,
+          ],
+        },
+      ],
+    });
+    if (canceled) throw Error('Canceled');
+    const workbook = XLSX.readFile(filePaths[0] || '', {
+      sheets: getItemSheetName(),
+      raw: true,
+      dense: true,
+    });
+    const sheetName =
+      workbook.SheetNames.find(
+        (e) => e.toLowerCase() === getItemSheetName().toLocaleLowerCase()
+      ) || '';
+    const sheet = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      blankrows: false,
+      header: 'A',
+    }) as ItemRow[];
+    const items: { [key: string]: { descripcion: string } } = {};
+    sheet.map((element, index) => {
+      if (index > 3) {
+        items[element.A] = { descripcion: element?.D || '' };
+      }
+      return null;
+    });
+    storage.set('items', items);
+  } catch (error) {
+    console.error(error);
+  } finally {
+    event.returnValue = true;
+  }
+  /* set_fs(fs);
+  const items: Items = {};
+  const workbook = readFile(filename, { sheets: sheetName });
+  console.log('hola', workbook); */
+};
+
+const removeBlankRows = async (event: Electron.IpcMainEvent) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const { filePath, canceled } = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Borrar filas',
+      filters: [
+        {
+          name: 'Spreadsheets',
+          extensions: ['xlsx', 'xls', 'xlsb' /* ... other formats ... */],
+        },
+      ],
+    });
+    if (canceled) throw Error('Canceled');
+    const workbook = XLSX.readFile(filePath || '', {
+      cellFormula: true,
+      sheets: getExcelSheetName(),
+      cellDates: true,
+      xlfn: true,
+      dense: true,
+    });
+    const sheet = workbook.Sheets[getExcelSheetName()]; // |undefined
+    let sheetJson = XLSX.utils.sheet_to_json(sheet, { blankrows: true });
+    sheetJson = sheetJson.filter((e) => Object.keys(e || {}).length !== 0);
+    const editedSheet = XLSX.utils.json_to_sheet(sheetJson);
+    workbook.Sheets[getExcelSheetName()] = editedSheet;
+    XLSX.writeFile(workbook, filePath || '');
+  } catch (error) {
+    console.error(error);
+  } finally {
+    event.returnValue = true;
+  }
+};
+
+const saveExcel = async (
+  event: Electron.IpcMainEvent,
+  data: any[] | undefined,
+  colHeaders: (string | number)[] | undefined
+) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const dialogInfo = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Guardar archivo',
+      filters: [
+        {
+          name: 'Spreadsheets',
+          extensions: ['xlsx', 'xls', 'xlsb' /* ... other formats ... */],
+        },
+      ],
+    });
+    // xlsx
+    let workbook = XLSX.utils.book_new();
+    /* EXCELJS
+    const workbook = new Workbook(); */
+    console.log({ dialogInfo });
+    if (dialogInfo.canceled) throw Error('Canceled');
+    const cleanData = data?.filter((row) => !row.every((e: any) => e === null));
+    console.log({ cleanData });
+    if (cleanData?.length === 0) throw Error('No Values where added');
+    const jsonData: Gasto[] = [];
+    cleanData?.forEach((e) => {
+      const [day, month, year] = String(
+        e[colHeaders?.indexOf('Fecha') || 0]
+      ).split('-');
+      const object: Gasto = {
+        fecha: {
+          v: moment(`${year}-${month}-${day}`).toDate(),
+          t: 'd',
+          f: !!year && !!month && !!day ? `DATE(${year},${month},${day})` : '',
+        },
+        especialidad: e[colHeaders?.indexOf('Especialidad') || 0],
+        capataz: e[colHeaders?.indexOf('Capataz') || 0],
+        item: e[colHeaders?.indexOf('Item') || 0],
+        'no directo': e[colHeaders?.indexOf('No Directo') || 0] || 0,
+        directo: e[colHeaders?.indexOf('Directos') || 0] || 0,
+        oficina: e[colHeaders?.indexOf('Oficina') || 0] || 0,
+        equipo: e[colHeaders?.indexOf('Equipos') || 0] || 0,
+        total: e[colHeaders?.indexOf('Total') || 0] || 0,
+        // eslint-disable-next-line prettier/prettier
+        'descripción': e[colHeaders?.indexOf('Descripcion') || 0],
+        comentario: e[colHeaders?.indexOf('Comentario') || 0],
+        // eslint-disable-next-line prettier/prettier
+        'ubicación': e[colHeaders?.indexOf('Ubicación') || 0],
+      };
+      jsonData.push(object);
+    });
+    console.log('jsonData', jsonData);
+    try {
+      // VEMOS SI EL ARCHIVO EXISTE
+      // ----------------------------------------------------
+      // XLSX
+      // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      workbook = XLSX.readFile(dialogInfo.filePath || '', {
+        cellFormula: true,
+        sheets: getExcelSheetName(),
+        cellDates: true,
+        xlfn: true,
+        dense: true,
+      });
+      let sheet = workbook.Sheets[getExcelSheetName()]; // |undefined
+      if (sheet !== undefined) {
+        XLSX.utils.sheet_add_json(sheet, jsonData, {
+          origin: -1,
+          skipHeader: true,
+        });
+      } else {
+        sheet = XLSX.utils.json_to_sheet(jsonData);
+        XLSX.utils.book_append_sheet(workbook, sheet, getExcelSheetName());
+      }
+      XLSX.writeFile(workbook, dialogInfo.filePath || '');
+    } catch (error) {
+      console.log('NO EXISTE', error);
+      const sheet = XLSX.utils.json_to_sheet(jsonData);
+      XLSX.utils.book_append_sheet(workbook, sheet, getExcelSheetName());
+      XLSX.writeFile(workbook, dialogInfo.filePath || '');
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    event.returnValue = true;
+  }
+};
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -39,6 +216,33 @@ ipcMain.on('electron-store-get', async (event, val) => {
 ipcMain.on('electron-store-set', async (event, key, val) => {
   storage.set(key, val);
 });
+ipcMain.on('electron-store-delete', async (event, key) => {
+  storage.delete(key);
+});
+ipcMain.on('open-file', async (event) => {
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  event.returnValue = dialog.showOpenDialogSync(mainWindow!, {
+    properties: ['openFile'],
+  });
+});
+ipcMain.on('save-excel', saveExcel);
+ipcMain.on('remove-blank-rows', removeBlankRows);
+ipcMain.on('save-file', async (event) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    event.returnValue = await dialog.showSaveDialog(mainWindow!);
+  } catch (e) {
+    console.error(e);
+  }
+});
+ipcMain.on('exists-sync', (event, pathfile: string) => {
+  event.returnValue = existsSync(pathfile);
+});
+
+ipcMain.on('fs', async (event) => {
+  event.returnValue = fs;
+});
+ipcMain.on('load-items', loadItems);
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -83,6 +287,7 @@ const createWindow = async () => {
     width: 1024,
     height: 728,
     icon: getAssetPath('icon.png'),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
@@ -107,8 +312,8 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  const menuBuilder = new MenuBuilder(mainWindow);
-  menuBuilder.buildMenu();
+  /* const menuBuilder = new MenuBuilder(mainWindow);
+  menuBuilder.buildMenu(); */
 
   // Open urls in the user's browser
   mainWindow.webContents.setWindowOpenHandler((edata) => {
@@ -120,11 +325,12 @@ const createWindow = async () => {
   // eslint-disable-next-line
   new AppUpdater();
 };
-
 /**
  * Add event listeners...
  */
-
+app.on('before-quit', () => {
+  storage.delete('data');
+});
 app.on('window-all-closed', () => {
   // Respect the OSX convention of having the application in memory even
   // after all windows have been closed

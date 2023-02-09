@@ -62,7 +62,9 @@
       "prettier --ignore-path .eslintignore --single-quote --write"
     ]
   },
-  "browserslist": [],
+  "browserslist": [
+    "last 1 Chrome version"
+  ],
   "prettier": {
     "singleQuote": true,
     "overrides": [
@@ -110,18 +112,16 @@
   },
   "dependencies": {
     "@handsontable/react": "^12.3.0",
-    "@tanstack/react-table": "^8.7.6",
     "electron-debug": "^3.2.0",
     "electron-log": "^4.4.8",
     "electron-store": "^8.1.0",
     "electron-updater": "^5.2.3",
-    "exceljs": "^4.3.0",
     "handsontable": "^12.3.0",
     "moment": "^2.29.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.4.0",
-    "react-select": "^5.7.0"
+    "react-router-dom": "^6.8.0",
+    "util": "^0.12.5"
   },
   "devDependencies": {
     "@electron/notarize": "^1.2.3",
@@ -138,6 +138,7 @@
     "@types/react-test-renderer": "^18.0.0",
     "@types/terser-webpack-plugin": "^5.0.4",
     "@types/webpack-bundle-analyzer": "^4.4.2",
+    "@types/xlsx": "^0.0.36",
     "@typescript-eslint/eslint-plugin": "^5.33.1",
     "@typescript-eslint/parser": "^5.33.1",
     "browserslist-config-erb": "^0.0.3",
@@ -175,6 +176,7 @@
     "prettier": "^2.7.1",
     "react-refresh": "^0.14.0",
     "react-test-renderer": "^18.2.0",
+    "regenerator-runtime": "^0.13.11",
     "rimraf": "^3.0.2",
     "sass": "^1.54.4",
     "sass-loader": "^13.0.2",

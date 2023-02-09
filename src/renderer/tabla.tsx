@@ -9,13 +9,14 @@ import 'handsontable/dist/handsontable.full.min.css';
 registerAllModules();
 
 type Fila = {
-  codigo: string | null;
+  item: string | null;
   fecha: Date | null;
   especialidad: string | null;
   descripcion: string | null;
   comentario: string | null;
-  ubicacion: string | null;
   capataz: string | null;
+  ubicacion: string | null;
+  noDirecto: number | null;
   directos: number | null;
   oficina: number | null;
   equipos: number | null;
@@ -47,16 +48,14 @@ const choices: Choice[] = [
 ];
 const Tabla = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [data, setData] = useState(
-    Array(10)
-      .fill(0)
-      .map((_) => ({})) as Fila[]
-  );
+  const data = window.electron.store.get('data');
   // const [newRows, setNewRows] = useState(() => [{} as Fila]);
   const [newRowValue, setNewRowValue] = useState(1);
-  const [items, setItems] = useState(
-    window.electron.store.get('items') as Items
-  );
+  const items =
+    (window.electron.store.get('items') as Items) ||
+    ({
+      error: { descripcion: 'no hay info' },
+    } as Items);
   const date = new Date();
   const hotRef = useRef<HotTable>(null);
   // const [rowToChange, setRowToChange] = useState(() => -1);
@@ -88,22 +87,46 @@ const Tabla = () => {
   /*   useEffect(() => {
     const hot = hotRef.current?.hotInstance;
   }); */
+  const saveToFile = () => {
+    const hotTable = hotRef.current?.hotInstance;
+    window.electron.dialog.saveExcel(
+      hotTable?.getData(),
+      hotTable?.getColHeader()
+    );
+    /* const filename: string[] | undefined = dialog.showOpenDialogSync({
+      properties: ['openFile'],
+    }); */
+  };
+  const borrarData = () => {
+    const hotTable = hotRef.current?.hotInstance;
+    // console.log(hotTable?.getData(), hotTable?.getColHeader());
+    hotTable?.updateSettings({
+      data: Array(window.electron.store.get('options.numberOfRows'))
+        .fill(0)
+        .map(() => ({})) as Fila[],
+    });
+  };
+  function removeBlankRows() {
+    window.electron.dialog.removeBlankRow();
+  }
 
   return (
     <div>
+      <h1> Tabla Gastos</h1>
       <HotTable
         id="main-table"
         data={data}
         ref={hotRef}
         /* contextMenu={['copy', 'cut']} */
         colHeaders={[
-          'Codigo',
+          'Item',
           'Fecha',
           'Especialidad',
           'Descripcion',
           'Comentario',
-          'Ubicación',
           'Capataz',
+          'Ubicación',
+          'No Directo',
           'Directos',
           'Oficina',
           'Equipos',
@@ -141,6 +164,7 @@ const Tabla = () => {
           { type: 'numeric' },
           { type: 'numeric' },
           { type: 'numeric' },
+          { type: 'numeric' },
         ]}
         rowHeaders
         persistentState
@@ -162,23 +186,31 @@ const Tabla = () => {
               console.log(items[newValue].descripcion);
               hotRef.current?.hotInstance?.setDataAtCell(
                 row,
-                2,
+                3,
                 items[newValue].descripcion
               );
             }
-            if (prop > 5 && prop < 9 && oldValue !== newValue) {
+            if (
+              Number(prop) > 6 &&
+              Number(prop) < 11 &&
+              oldValue !== newValue
+            ) {
               const rowData: Array<number> = hotRef.current?.hotInstance
                 ?.getDataAtRow(row)
-                .slice(7, 10) || [0];
+                .slice(7, 11) || [0];
               // console.log(rowData);
               hotRef.current?.hotInstance?.setDataAtCell(
                 row,
-                10,
-                rowData[0] + rowData[1] + rowData[2]
+                11,
+                rowData[0] + rowData[1] + rowData[2] + rowData[3]
               );
             }
             // console.log(row, prop, oldValue, newValue);
           });
+          window.electron.store.set(
+            'data',
+            hotRef.current?.hotInstance?.getData()
+          );
           // console.log(hotRef.current?.hotInstance?.getData());
         }}
       />
@@ -190,16 +222,31 @@ const Tabla = () => {
         ))}
       </select>
       <button onClick={addRow}>Agregar Fila</button>
-      <button
-        type="button"
-        onClick={() => {
-          console.log(
-            `${date.getDate()}-${date.getMonth() + 1}-${date.getFullYear()}`
-          );
-        }}
-      >
-        Imprimir
+      <button type="button" onClick={borrarData}>
+        Borrar Filas
       </button>
+      <p>
+        La información para guardar o borrar filas vacias es en la hoja{' '}
+        {window.electron.store.get('options.excelSheetName')}
+      </p>
+      <p>
+        <button
+          type="button"
+          onClick={() => {
+            saveToFile();
+          }}
+        >
+          Guardar a Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            removeBlankRows();
+          }}
+        >
+          Borrar Filas vacias de archivo
+        </button>
+      </p>
     </div>
   );
 };
